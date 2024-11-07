@@ -1,91 +1,89 @@
-# %% Import modules
 import numpy as np
 import torch_geometric
 import networkx as nx
-import os 
 import matplotlib.pyplot as plt
-from dataset import MEGGraphs
 
-# %% Retrieve dataset
-# Define name of .ds folder
-'''
-Note: if you want to load multiple files at once, add more filenames to the list. 
-'''
-filenames = ["sub-PT06ses04_ses-20181204_task-somatosensory_run-06_meg.ds"]
+def plot_PSD(dataset):
+    '''
+    Plots the power spectral density (PSD) of a graph where stimulation was turned ON and of a graph where stimulation was turned OFF. 
+    INPUT:
+        - dataset       : Dataset of graphs
+    OUTPUT: N/A
+    '''
+    # Retrieve how many graphs there are in the dataset
+    amount_graphs = dataset.len()
 
-# Define the duration of the subepochs and the amount of overlap between them
-duration = 60
-overlap = 0
+    # Retrieve a graph where stimulation was turned ON and a graph where stimulation was turned OFF. The first half of the created graphs are ON, the second half OFF. 
+    data_stim = dataset.get(0)
+    data_non_stim = dataset.get(amount_graphs-1)
 
-# Define variables for node and edge features 
-conn_method = 'pli'
-freqs = {'fmin': 1, 
-         'fmax': 40, 
-         'freqs': np.linspace(1, 40, (40 - 1) * 4 + 1)}
+    # Define the resampling frequency that is used in the 'process' function of 'MEGGraphs' (see dataset.py)
+    sfreq = 256
 
-dataset = MEGGraphs(root="data\\", 
-                    filenames=filenames, 
-                    duration=duration,
-                    overlap=overlap,
-                    conn_method=conn_method,
-                    freqs=freqs)
+    # Retrieve the node feature matrices from both graphs (this is the PSD)
+    psd_stim = data_stim.x.numpy()
+    psd_non_stim = data_non_stim.x.numpy()
 
+    # Define the frequency axis 
+    freqs = (sfreq / 2) * (np.arange(0, psd_stim.shape[1]) / psd_stim.shape[1])
 
-# %%
-filename = "sub-PT06ses04_ses-20181204_task-somatosensory_run-06_meg.ds"
-raw_path = os.path.join("data\\", "raw\\", filename)
-raw = dataset.load_raw_data(raw_path)
+    # Load the raw data 
+    raw = dataset.load_raw_data(dataset.raw_paths[0])
 
-# %% PSD 
-data_stim = dataset.get(0)
-data_non_stim = dataset.get(9)
+    # Retrieve the channel names
+    channels = raw.info["ch_names"]
+    channels = [ch[:3] for ch in channels]
 
-sfreq = 256
-psd_stim = data_stim.x.numpy()
-psd_non_stim = data_non_stim.x.numpy()
-freqs = (sfreq / 2) * (np.arange(0, psd_stim.shape[1]) / psd_stim.shape[1])
+    # Plot the PSD of the stimulation ON graph
+    plt.figure(figsize=(12,5))
+    plt.subplot(121)
+    for idx in range(psd_stim.shape[0]):
+        plt.plot(freqs, psd_stim[idx,:], label=channels[idx])
 
-channels = raw.info["ch_names"]
-channels = [ch[:3] for ch in channels]
+    plt.figlegend(channels)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.title('Power spectral density (stimulation ON)')
+    plt.xlabel('Frequency [Hz]')
+    plt.ylabel('Magnitude')
 
-fig = plt.figure(figsize=(12,5))
-plt.subplot(121)
-for idx in range(psd_stim.shape[0]):
-    plt.plot(freqs, psd_stim[idx,:], label=channels[idx])
+    # Plot the PSD of the stimulation OFF graph
+    plt.subplot(122)
+    for idx in range(psd_non_stim.shape[0]):
+        plt.plot(freqs, psd_non_stim[idx,:], label=channels[idx])
 
-plt.figlegend(channels)
-plt.xscale("log")
-plt.yscale("log")
-plt.title('Power spectral density (stimulation ON)')
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Magnitude')
-    
-plt.subplot(122)
-for idx in range(psd_non_stim.shape[0]):
-    plt.plot(freqs, psd_non_stim[idx,:], label=channels[idx])
+    plt.figlegend(channels[:2])
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.title('Power spectral density (stimulation OFF)')
+    plt.xlabel('Frequency [Hz]')
+    plt.ylabel('Magnitude')
 
-plt.figlegend(channels[:2])
-plt.xscale("log")
-plt.yscale("log")
-plt.title('Power spectral density (stimulation OFF)')
-plt.xlabel('Frequency [Hz]')
-plt.ylabel('Magnitude')
+def visualize_graph(dataset):
+    '''
+    Visualizes the network of one of the graphs in the dataset.
+    INPUT:
+        - dataset       : Dataset of graphs
+    OUTPUT: N/A
+    '''
+    # Retrieve the first graph
+    data = dataset.get(0)
 
-# %% PLI
-pli = data_stim.edge_attr
-print(pli)
+    # Load the raw data
+    raw = dataset.load_raw_data(dataset.raw_paths[0])
 
-# %% Visualize graph
-# Retrieve names of channels  
-channels_dict = {n:channel[:3] for n, channel in enumerate(channels)}
+    # Retrieve the channel names
+    channels = raw.info["ch_names"]
+    channels_dict = {n:channel[:3] for n, channel in enumerate(channels)}
 
-# Retrieve positions of channels
-ch_pos = [ch['loc'][:2] for ch in raw.info['chs']]
-ch_pos_dict = {idx: pos for idx, pos in enumerate(ch_pos)}
+    # Retrieve the channel positions 
+    ch_pos = [ch['loc'][:2] for ch in raw.info['chs']]
+    ch_pos_dict = {idx: pos for idx, pos in enumerate(ch_pos)}
 
-# Visualize graph
-g = torch_geometric.utils.to_networkx(data_stim, to_undirected=True)
-nx.draw_networkx(g, pos=ch_pos_dict, with_labels=False, node_color='r', edge_color='k', node_size=450)
-nx.draw_networkx_labels(g, pos=ch_pos_dict, labels=channels_dict, font_color='k', font_weight='bold', font_size=9)
+    # Visualize graph (note: node and edge features cannot be visualized)
+    plt.figure()
+    g = torch_geometric.utils.to_networkx(data, to_undirected=True)
+    nx.draw_networkx(g, pos=ch_pos_dict, with_labels=False, node_color='r', edge_color='k', node_size=450)
+    nx.draw_networkx_labels(g, pos=ch_pos_dict, labels=channels_dict, font_color='k', font_weight='bold', font_size=9)
 
-plt.show()
+    plt.show()
