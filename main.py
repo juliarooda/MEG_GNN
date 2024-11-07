@@ -1,4 +1,3 @@
-# %%
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -16,7 +15,7 @@ def create_dataset():
     OUTPUT: 
         - dataset    : Dataset of graphs
 
-    Note: if you want to load multiple files at once, add more filenames to the list. 
+    NB: if you want to load multiple files at once, add more filenames to the list. 
     '''
 
     # Define filenames of (raw) MEG data you want to create graphs out of
